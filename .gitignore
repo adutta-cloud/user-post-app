@@ -1,0 +1,84 @@
+# --- Build & Compiled Files (Maven) ---
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+# Exclude JARs but allow a specific libs folder if needed
+!libs/*.jar
+
+# --- IDE Specific Files ---
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Eclipse
+.metadata/
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.settings/
+.loadpath
+.recommenders
+.project
+.classpath
+
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# --- Environment & Secrets (Important!) ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.p12
+secrets.yaml
+
+# --- OS Specific System Files ---
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# --- Logs ---
+*.log
+logs/
+*.log.gz
+
+# --- Docker & Kubernetes ---
+# Ignore local minikube config/certs if they were accidentally created in project
+.minikube/
+kubeconfig
+
+# --- Testing ---
+report/
+test-output/
