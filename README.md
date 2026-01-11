@@ -102,11 +102,12 @@ This section deploys the application to a Minikube cluster, simulating a product
 Start Minikube with sufficient RAM for Kafka (Critical step).
 ```bash
 minikube start --memory=4096 --cpus=2
+```
 
-2. Load Images
+### 2. Load Images
 Since Minikube runs in a separate VM, we must load the locally built Docker images into it.
 
-Bash
+```Bash
 
 # 1. Tag images to match K8s manifests
 docker tag user-post-app-user-service:latest grid-user-service:latest
@@ -115,78 +116,90 @@ docker tag user-post-app-post-service:latest grid-post-service:latest
 # 2. Load into Minikube
 minikube image load grid-user-service:latest
 minikube image load grid-post-service:latest
-3. Deploy Resources
+```
+
+### 3. Deploy Resources
 Apply the configuration files for Infrastructure (Kafka/Zookeeper) and Applications.
 
-Bash
+```Bash
 
 kubectl apply -f k8s/infrastructure.yaml
 kubectl apply -f k8s/apps.yaml
-4. Wait for Startup
+```
+
+### 4. Wait for Startup
 Monitor the pods until all status show Running.
 
-Bash
+```Bash
 
 kubectl get pods -w
+```
+
 Note: Kafka may restart once or twice during initialization. This is normal.
 
-5. Initialize Topic (One-time Setup)
+### 5. Initialize Topic (One-time Setup)
 Manually create the topic to ensure immediate availability.
 
-Bash
+```Bash
 
 kubectl exec -it $(kubectl get pod -l app=kafka -o jsonpath='{.items[0].metadata.name}') -- kafka-topics --bootstrap-server localhost:9092 --create --topic post-created-topic --partitions 1 --replication-factor 1
-6. Expose Network
+```
+
+### 6. Expose Network
 Open a tunnel to access the services via localhost. Keep this terminal window open.
 
-Bash
+```Bash
 
 minikube tunnel
-🧪 API Usage & Testing
+```
+
+## 🧪 API Usage & Testing
 Use Postman or curl to verify the Event-Driven flow.
 
-1. Create a User (User Service)
-Method: POST
+### 1. Create a User (User Service)
 
-URL: http://localhost:8888/register
+* **Method:** POST
 
-Body:
+* **URL:** http://localhost:8888/register
 
-JSON
+* **Body:**
 
+```JSON
 {
     "username": "demo_user",
     "email": "demo@example.com",
     "password": "securePass123"
 }
-Response: 201 Created
+```
+* **Response:** `201 Created`
 
-2. Create a Post (Post Service)
-Method: POST
 
-URL: http://localhost:8889/posts
+### 2. Create a Post (Post Service)
 
-Body:
+* **Method:** POST
 
-JSON
+* **URL:** http://localhost:8889/posts
 
+* **Body:**
+
+```JSON
 {
     "authorId": 1,
     "content": "Hello Kubernetes World!"
 }
-Response: 201 Created
+```
+* **Response:** `201 Created`
 
-3. Verify Event Processing (User Service)
+### 3. Verify Event Processing (User Service)
 Check if the user's post count incremented automatically via Kafka.
 
-Method: GET
+* **Method:** GET
 
-URL: http://localhost:8888/users
+* **URL:** http://localhost:8888/users
 
-Expected Output:
+* **Expected Output:**
 
-JSON
-
+```JSON
 [
     {
         "id": 1,
@@ -194,29 +207,34 @@ JSON
         "postCount": 1  // <--- This confirms the event was processed
     }
 ]
-🔧 Troubleshooting
-Kafka Pod "CrashLoopBackOff" or Error
-Cause: Insufficient RAM allocated to Minikube or Kafka Heap size too large.
+```
 
-Fix: Ensure Minikube was started with --memory=4096. Ensure infrastructure.yaml has KAFKA_HEAP_OPTS: "-Xmx512M -Xms512M".
+---
 
-Check Logs: kubectl logs -l app=kafka --previous
+## 🔧 Troubleshooting
+### Kafka Pod "CrashLoopBackOff" or Error
+* **Cause:** Insufficient RAM allocated to Minikube or Kafka Heap size too large.
 
-"Topic not present in metadata"
-Cause: The application started before Kafka was fully ready.
+* **Fix:** Ensure Minikube was started with --memory=4096. Ensure infrastructure.yaml has KAFKA_HEAP_OPTS: "-Xmx512M -Xms512M".
 
-Fix: Restart the application pods to trigger a reconnection.
+* Check Logs: kubectl logs -l app=kafka --previous
 
-Bash
+### "Topic not present in metadata"
+* **Cause:** The application started before Kafka was fully ready.
 
+* **Fix:** Restart the application pods to trigger a reconnection.
+
+```Bash
 kubectl rollout restart deployment/post-service
-Changes in code not reflecting?
-Cause: Minikube is using the old cached image.
+```
 
-Fix:
+### Changes in code not reflecting?
+* **Cause:** Minikube is using the old cached image.
 
-docker-compose build (Rebuild locally)
+* **Fix:**
 
-minikube image load grid-user-service:latest (Push new image)
+    1. docker-compose build (Rebuild locally)
 
-kubectl rollout restart deployment/user-service (Restart pod)
+    2. minikube image load grid-user-service:latest (Push new image)
+
+    3. kubectl rollout restart deployment/user-service (Restart pod)
