@@ -68,6 +68,7 @@ Use this for quick local testing without Kubernetes overhead.
 
 1.  **Build the project & containers:**
     ```bash
+    # Compiles Java code and builds images for Gateway, User, Post, and UI
     docker-compose build --no-cache
     ```
 
@@ -105,17 +106,16 @@ minikube start --memory=4096 --cpus=2
 ```
 
 ### 2. Load Images
-Since Minikube runs in a separate VM, we must load the locally built Docker images into it.
+Since Minikube runs in a separate VM, load the locally built images into it.
 
 ```Bash
+# 1. Build locally
+docker-compose build --no-cache
 
-# 1. Tag images to match K8s manifests
-docker tag user-post-app-user-service:latest grid-user-service:latest
-docker tag user-post-app-post-service:latest grid-post-service:latest
-
-# 2. Load into Minikube
+# 2. Load into Minikube (Repeat if you change code)
 minikube image load grid-user-service:latest
 minikube image load grid-post-service:latest
+minikube image load grid-api-gateway:latest
 ```
 
 ### 3. Deploy Resources
@@ -125,9 +125,15 @@ Apply the configuration files for Infrastructure (Kafka/Zookeeper) and Applicati
 
 kubectl apply -f k8s/infrastructure.yaml
 kubectl apply -f k8s/apps.yaml
+kubectl apply -f k8s/gateway.yaml
+```
+### 4. Expose Network
+Open a tunnel to access the LoadBalancer services via localhost. Keep this terminal open.
+```bash
+minikube tunnel
 ```
 
-### 4. Wait for Startup
+### 5. Wait for Startup
 Monitor the pods until all status show Running.
 
 ```Bash
@@ -153,14 +159,21 @@ Open a tunnel to access the services via localhost. Keep this terminal window op
 minikube tunnel
 ```
 
-## 🧪 API Usage & Testing
-Use Postman or curl to verify the Event-Driven flow.
+## 🧪 API Usage (Via Gateway)
+You can also test the backend manually using curl or Postman via the API Gateway (Port 8080).
 
-### 1. Create a User (User Service)
+### 1. Health Check
+
+* **Method:** GET
+
+* **URL:** http://localhost:8080/health
+
+
+### 2. Create a User
 
 * **Method:** POST
 
-* **URL:** http://localhost:8888/register
+* **URL:** http://localhost:8080/register
 
 * **Body:**
 
@@ -174,11 +187,11 @@ Use Postman or curl to verify the Event-Driven flow.
 * **Response:** `201 Created`
 
 
-### 2. Create a Post (Post Service)
+### 3. Create a Post
 
 * **Method:** POST
 
-* **URL:** http://localhost:8889/posts
+* **URL:** http://localhost:8080/posts
 
 * **Body:**
 
@@ -190,12 +203,12 @@ Use Postman or curl to verify the Event-Driven flow.
 ```
 * **Response:** `201 Created`
 
-### 3. Verify Event Processing (User Service)
+### 4. Verify Event Processing (User Service)
 Check if the user's post count incremented automatically via Kafka.
 
 * **Method:** GET
 
-* **URL:** http://localhost:8888/users
+* **URL:** http://localhost:8080/users
 
 * **Expected Output:**
 
