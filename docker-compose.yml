@@ -23,6 +23,7 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1 
+      
   user-service:
     build: ./user-service       
     container_name: grid-user-service
@@ -42,3 +43,16 @@ services:
       - KAFKA_BROKER=grid-kafka:29092
     depends_on:
       - kafka
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: grid-api-gateway
+    image: grid-api-gateway:latest
+    ports:
+      - "8080:8080"  # Expose Gateway to Host
+    environment:
+      - USER_SERVICE_HOST=user-service  # Links to Docker service name
+      - POST_SERVICE_HOST=post-service
+    depends_on:
+      - user-service
+      - post-service

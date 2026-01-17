@@ -81,4 +81,4 @@ kubeconfig
 
 # --- Testing ---
 report/
-test-output/
+test-output/.DS_Store
