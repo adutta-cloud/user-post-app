@@ -5,6 +5,7 @@ import com.griddynamics.user_service.repositories.UserRepository;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.JWTOptions;
@@ -14,10 +15,14 @@ import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.jdbcclient.JDBCConnectOptions;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.Pool;
 import io.vertx.sqlclient.PoolOptions;
+
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainVerticle extends AbstractVerticle {
 
@@ -66,6 +71,31 @@ public class MainVerticle extends AbstractVerticle {
 
   private Future<Void> startHttpServer() {
     Router router = Router.router(vertx);
+
+    // ---------------------------------------------------------
+    // 1. ADD CORS HANDLER (Must be first!)
+    // ---------------------------------------------------------
+    Set<String> allowedHeaders = new HashSet<>();
+    allowedHeaders.add("x-requested-with");
+    allowedHeaders.add("Access-Control-Allow-Origin");
+    allowedHeaders.add("origin");
+    allowedHeaders.add("Content-Type");
+    allowedHeaders.add("accept");
+    allowedHeaders.add("Authorization");
+
+    Set<HttpMethod> allowedMethods = new HashSet<>();
+    allowedMethods.add(HttpMethod.GET);
+    allowedMethods.add(HttpMethod.POST);
+    allowedMethods.add(HttpMethod.OPTIONS);
+    allowedMethods.add(HttpMethod.PUT);
+
+    // Allow requests from your Frontend URL (or "*" for all)
+    router.route().handler(CorsHandler.create()
+      .addOrigin("http://localhost:5173")
+      .allowedHeaders(allowedHeaders)
+      .allowedMethods(allowedMethods));
+    // ---------------------------------------------------------
+
     router.route().handler(BodyHandler.create());
 
     // Routes
