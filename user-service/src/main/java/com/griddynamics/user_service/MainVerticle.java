@@ -7,6 +7,10 @@ import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.JWTOptions;
+import io.vertx.ext.auth.PubSecKeyOptions;
+import io.vertx.ext.auth.jwt.JWTAuth;
+import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -19,6 +23,7 @@ public class MainVerticle extends AbstractVerticle {
 
   private UserRepository userRepository;
   private KafkaConsumerService kafkaConsumer;
+  private JWTAuth jwtAuth;
 
   public static void main(String[] args) {
     io.vertx.core.Vertx vertx = io.vertx.core.Vertx.vertx();
@@ -28,7 +33,11 @@ public class MainVerticle extends AbstractVerticle {
   @Override
   public void start(Promise<Void> startPromise) throws Exception {
 
-    // 1. Setup DB
+    jwtAuth = JWTAuth.create(vertx, new JWTAuthOptions()
+      .addPubSecKey(new PubSecKeyOptions()
+        .setAlgorithm("HS256")
+        .setBuffer("my-secret-password-key-1234567890")));
+
     JDBCConnectOptions dbConfig = new JDBCConnectOptions()
       .setJdbcUrl("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1")
       .setUser("sa")
@@ -37,27 +46,24 @@ public class MainVerticle extends AbstractVerticle {
     Pool dbClient = JDBCPool.pool(vertx, dbConfig, new PoolOptions().setMaxSize(5));
     userRepository = new UserRepository(dbClient);
 
-    // 2. Async Chain: Init DB -> Init Kafka -> Start Server
     userRepository.initData()
       .compose(v -> {
         // Init Kafka Consumer (It starts listening immediately)
         kafkaConsumer = new KafkaConsumerService(vertx, userRepository);
         kafkaConsumer.start();
 
-        // Start HTTP Server
         return startHttpServer();
       })
       .onSuccess(v -> {
-        System.out.println("User Service Ready (DB + Kafka + HTTP)");
+        System.out.println("✅ User Service Ready (DB + Kafka + HTTP)");
         startPromise.complete();
       })
       .onFailure(err -> {
-        System.err.println("Startup Failed: " + err.getMessage());
+        System.err.println("❌ Startup Failed: " + err.getMessage());
         startPromise.fail(err);
       });
   }
 
-  // --- Refactored: Returns Future instead of taking Promise ---
   private Future<Void> startHttpServer() {
     Router router = Router.router(vertx);
     router.route().handler(BodyHandler.create());
@@ -68,7 +74,6 @@ public class MainVerticle extends AbstractVerticle {
     router.post("/login").handler(this::loginUser);
     router.get("/users").handler(this::getAllUsers);
 
-    // Create Server and return Future
     return vertx.createHttpServer()
       .requestHandler(router)
       .listen(8888)
@@ -104,9 +109,24 @@ public class MainVerticle extends AbstractVerticle {
     userRepository.findByUsername(username)
       .onSuccess(user -> {
         if (user == null || !user.getPassword().equals(password)) {
-          ctx.response().setStatusCode(401).end("Invalid Credentials");
+          ctx.response().setStatusCode(401).end(new JsonObject().put("message", "Invalid Credentials").encode());
         } else {
-          ctx.json(new JsonObject().put("message", "Login Success").put("userId", user.getId()));
+
+          // ✨ Generate JWT Token ✨
+          String token = jwtAuth.generateToken(
+            new JsonObject()
+              .put("sub", user.getUsername())  // Subject (Username)
+              .put("userId", user.getId()),    // Custom Claim (User ID)
+            new JWTOptions().setExpiresInSeconds(3600) // Expires in 1 hour
+          );
+
+          // Return Token to Client
+          ctx.json(new JsonObject()
+            .put("message", "Login Success")
+            .put("token", token)
+            .put("userId", user.getId())
+            .put("username", user.getUsername())
+          );
         }
       })
       .onFailure(err -> ctx.response().setStatusCode(500).end(err.getMessage()));
