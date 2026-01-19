@@ -88,6 +88,9 @@ public class MainVerticle extends AbstractVerticle {
     // 3. GET /users
     router.get("/users").handler(ctx -> proxyRequest(ctx, userServiceHost, userServicePort));
 
+    // 4. GET /users/:id
+    router.get("/users/:id").handler(ctx -> proxyRequest(ctx, userServiceHost, userServicePort));
+
     // ==========================================
     // 📝 POST SERVICE ROUTES (Port 8889)
     // ==========================================

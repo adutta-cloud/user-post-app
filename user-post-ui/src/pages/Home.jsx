@@ -10,9 +10,23 @@ const Home = () => {
   const fetchPosts = async () => {
     try {
       const res = await axios.get('http://localhost:8080/posts');
-      setPosts(res.data);
+      const allPosts = await Promise.all(res.data.map(async (post) => {
+        const authorName = await fetchAuthorName(post.authorId);
+        return { ...post, authorName };
+      }));
+      setPosts(allPosts);
     } catch (err) { console.error("Error fetching posts:", err); }
   };
+
+  const fetchAuthorName = async (id) => {
+    try {
+      const res = await axios.get(`http://localhost:8080/users/${id}`);
+      return res.data.username;
+    } catch (err) {
+      console.error("Error fetching username:", err);
+      return "Unknown";
+    }
+  }
 
   const createPost = async (e) => {
     e.preventDefault();
@@ -62,7 +76,7 @@ const Home = () => {
                   <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold mr-3">
                     {post.authorId}
                   </div>
-                  <span className="font-semibold text-gray-700">User #{post.authorId}</span>
+                  <span className="font-semibold text-gray-700">{post.authorName}</span>
                 </div>
                 <p className="text-gray-800 leading-relaxed">{post.content}</p>
               </div>

@@ -103,6 +103,7 @@ public class MainVerticle extends AbstractVerticle {
     router.post("/register").handler(this::registerUser);
     router.post("/login").handler(this::loginUser);
     router.get("/users").handler(this::getAllUsers);
+    router.get("/users/:id").handler(this::getUserById);
 
     return vertx.createHttpServer()
       .requestHandler(router)
@@ -168,6 +169,32 @@ public class MainVerticle extends AbstractVerticle {
         JsonArray response = new JsonArray();
         users.forEach(u -> response.add(u.toJson()));
         ctx.json(response);
+      })
+      .onFailure(err -> ctx.response().setStatusCode(500).end(err.getMessage()));
+  }
+
+  private void getUserById(RoutingContext ctx) {
+    String idParam = ctx.pathParam("id");
+    Long userId;
+    try {
+      userId = Long.parseLong(idParam);
+    } catch (NumberFormatException e) {
+      ctx.response().setStatusCode(400).end("Invalid User ID");
+      return;
+    }
+
+    userRepository.findById(userId)
+      .onSuccess(user -> {
+        if (user == null) {
+          ctx.response().setStatusCode(404).end("User Not Found");
+        } else {
+          JsonObject cleanUser = new JsonObject()
+            .put("id", user.getId())
+            .put("username", user.getUsername())
+            .put("email", user.getEmail()); // Add other safe fields
+
+          ctx.json(cleanUser);
+        }
       })
       .onFailure(err -> ctx.response().setStatusCode(500).end(err.getMessage()));
   }

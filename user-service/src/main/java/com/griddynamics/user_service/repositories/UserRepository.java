@@ -61,4 +61,14 @@ public class UserRepository {
       .execute(Tuple.of(userId))
       .mapEmpty();
   }
+
+  public Future<User> findById(Long userId) {
+    String sql = "SELECT * FROM users WHERE id = ?";
+    return dbClient.preparedQuery(sql)
+      .execute(Tuple.of(userId))
+      .map(rows -> {
+        if (rows.size() == 0) return null;
+        return User.fromRow(rows.iterator().next());
+      });
+  }
 }
