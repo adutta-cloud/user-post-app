@@ -31,7 +31,7 @@ public class KafkaConsumerService {
     config.put("auto.offset.reset", "earliest");
 
     this.consumer = KafkaConsumer.create(vertx, config);
-
+    this.consumer.subscribe("post-created-topic");
     // 2. Register Handler
     consumer.handler(record -> {
       System.out.println(">>> Kafka Message Received. User ID: " + record.value());
