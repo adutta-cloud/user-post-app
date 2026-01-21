@@ -47,6 +47,7 @@ public class MainVerticle extends AbstractVerticle {
     // API Routes
     router.post("/posts").handler(this::createPost);
     router.get("/posts").handler(this::getAllPosts);
+    router.post("/posts/:id/like").handler(this::likePost);
 
     // 3. Initialize DB -> Start Server
     postRepository.initData()
@@ -68,20 +69,28 @@ public class MainVerticle extends AbstractVerticle {
   private void createPost(RoutingContext ctx) {
     JsonObject body = ctx.body().asJsonObject();
 
-    // Validation
-    if (body == null || !body.containsKey("authorId") || !body.containsKey("content")) {
-      ctx.response().setStatusCode(400).end("authorId and content are required");
+    // 1. Validate required fields (Added title and authorName)
+    if (body == null || !body.containsKey("authorId") || !body.containsKey("content") || !body.containsKey("title")) {
+      ctx.response().setStatusCode(400).end("authorId, title, and content are required");
       return;
     }
 
+    // 2. Create Post Object using the NEW Constructor
+    // Post(String title, String content, int authorId, String authorName)
     Post newPost = new Post(
-      body.getLong("authorId"),
-      body.getString("content")
+      body.getString("title"),
+      body.getString("content"),
+      body.getInteger("authorId"),
+      body.getString("authorName") // Can be null if not sent, but better to send it
     );
 
+    // 3. Save to DB
     postRepository.save(newPost)
       .onSuccess(v -> {
-        kafkaProducer.sendPostCreatedEvent(newPost.getAuthorId());
+        // 4. Trigger Kafka Event
+        // Ensure your variable name matches (kafkaProducerService vs kafkaProducer)
+        kafkaProducer.sendPostCreatedEvent((long) newPost.getAuthorId());
+
         ctx.response().setStatusCode(201).end(new JsonObject().put("message", "Post Created").encode());
       })
       .onFailure(err -> {
@@ -95,9 +104,50 @@ public class MainVerticle extends AbstractVerticle {
     postRepository.findAll()
       .onSuccess(posts -> {
         JsonArray response = new JsonArray();
+        // This will now include 'likes', 'title', and 'authorName' automatically
+        // because we updated the Post.toJson() method earlier.
         posts.forEach(p -> response.add(p.toJson()));
+
         ctx.json(response);
       })
       .onFailure(err -> ctx.response().setStatusCode(500).end(err.getMessage()));
+  }
+
+  private void likePost(RoutingContext ctx) {
+    String idParam = ctx.pathParam("id");
+    Long postId;
+
+    // 1. Parse Post ID
+    try {
+      postId = Long.parseLong(idParam);
+    } catch (NumberFormatException e) {
+      ctx.response().setStatusCode(400).end("Invalid Post ID");
+      return;
+    }
+
+    // 2. Extract User ID (Sent from Frontend/Gateway)
+    // If missing, we default to 0 (Anonymous)
+    String userIdStr = ctx.request().getHeader("userId");
+    Long userId = (userIdStr != null) ? Long.parseLong(userIdStr) : 0L;
+
+    // 3. Update DB First (Atomic Increment)
+    postRepository.likePost(postId)
+      .compose(v -> {
+        // 4. If DB Success -> Send Kafka Event
+        return kafkaProducer.sendLikeEvent(postId, userId);
+      })
+      .onSuccess(v -> {
+        // 5. Return Success to Client
+        ctx.response()
+          .putHeader("Content-Type", "application/json")
+          .end(new JsonObject().put("message", "Post Liked").put("postId", postId).encode());
+      })
+      .onFailure(err -> {
+        if (err.getMessage().contains("Post not found")) {
+          ctx.response().setStatusCode(404).end("Post Not Found");
+        } else {
+          ctx.response().setStatusCode(500).end(err.getMessage());
+        }
+      });
   }
 }
