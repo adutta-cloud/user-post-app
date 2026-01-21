@@ -101,6 +101,9 @@ public class MainVerticle extends AbstractVerticle {
     // 5. GET /posts (Get all posts)
     router.get("/posts").handler(ctx -> proxyRequest(ctx, postServiceHost, postServicePort));
 
+    // 6. POST /posts/:id/like (Like a post)
+    router.post("/posts/:id/like").handler(ctx -> proxyRequest(ctx, postServiceHost, postServicePort));
+
     // 5. Start Server
     vertx.createHttpServer()
       .requestHandler(router)

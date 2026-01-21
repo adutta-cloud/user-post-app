@@ -1,6 +1,8 @@
 package com.griddynamics.post_service;
 
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonObject;
 import io.vertx.kafka.client.producer.KafkaProducer;
 import io.vertx.kafka.client.producer.KafkaProducerRecord;
 import java.util.HashMap;
@@ -47,5 +49,29 @@ public class KafkaProducerService {
         System.err.println(">>> ERROR: Kafka send failed: " + err.getMessage());
         err.printStackTrace();
       });
+  }
+
+  public Future<Void> sendLikeEvent(Long postId, Long userId) {
+    // 1. Create the Event Payload
+    JsonObject event = new JsonObject()
+      .put("event", "POST_LIKED")
+      .put("postId", postId)
+      .put("userId", userId)
+      .put("timestamp", System.currentTimeMillis());
+
+    System.out.println(">>> Attempting to send Like Event: " + event.encode());
+
+    // 2. Send to Topic "post-events"
+    // We use postId as the key to ensure order (if needed later)
+    KafkaProducerRecord<String, String> record =
+      KafkaProducerRecord.create("post-events", String.valueOf(postId), event.encode());
+
+    return producer.send(record)
+      .onSuccess(v -> System.out.println(">>> SUCCESS: Like event sent for Post " + postId))
+      .onFailure(err -> {
+        System.err.println(">>> ERROR: Like event failed: " + err.getMessage());
+        err.printStackTrace();
+      })
+      .mapEmpty();
   }
 }

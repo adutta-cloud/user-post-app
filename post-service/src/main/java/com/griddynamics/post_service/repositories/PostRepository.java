@@ -20,17 +20,26 @@ public class PostRepository {
   public Future<Void> initData() {
     String schema = "CREATE TABLE IF NOT EXISTS posts (" +
       "id IDENTITY PRIMARY KEY, " +
-      "author_id BIGINT NOT NULL, " +
+      "title VARCHAR(255)," +
       "content VARCHAR(1000), " +
+      "author_id INT, " +
+      "author_name VARCHAR(255)," +
       "likes INT DEFAULT 0 )";
     return dbClient.query(schema).execute().mapEmpty();
   }
 
   // 2. Create Post
   public Future<Void> save(Post post) {
-    String sql = "INSERT INTO posts (author_id, content, likes) VALUES (?, ?, ?)";
+    String sql = "INSERT INTO posts (title, content, author_id, author_name, likes) VALUES (?, ?, ?, ?, ?)";
+
     return dbClient.preparedQuery(sql)
-      .execute(Tuple.of(post.getAuthorId(), post.getContent(), post.getLikes()))
+      .execute(Tuple.of(
+        post.getTitle(),
+        post.getContent(),
+        post.getAuthorId(),
+        post.getAuthorName(),
+        post.getLikes() // This will usually be 0
+      ))
       .mapEmpty();
   }
 
@@ -41,14 +50,25 @@ public class PostRepository {
       .map(rows -> {
         List<Post> posts = new ArrayList<>();
         for (Row row : rows) {
-          Post p = new Post();
-          p.setId(row.getLong("ID"));
-          p.setAuthorId(row.getLong("AUTHOR_ID"));
-          p.setContent(row.getString("CONTENT"));
-          p.setLikes(row.getInteger("LIKES"));
-          posts.add(p);
+          // Use the helper method to map ALL fields (id, title, content, author, likes)
+          posts.add(Post.fromRow(row));
         }
         return posts;
+      });
+  }
+
+  // 4. Increment Likes (Atomic Update)
+  public Future<Void> likePost(Long postId) {
+    // ATOMIC UPDATE: This prevents race conditions if 2 users like at the exact same time
+    String sql = "UPDATE posts SET likes = likes + 1 WHERE id = ?";
+
+    return dbClient.preparedQuery(sql)
+      .execute(Tuple.of(postId))
+      .compose(rows -> {
+        if (rows.rowCount() == 0) {
+          return Future.failedFuture("Post not found");
+        }
+        return Future.succeededFuture();
       });
   }
 }
